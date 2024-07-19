@@ -1,6 +1,7 @@
 import axios, {AxiosRequestConfig, RawAxiosRequestHeaders} from 'axios';
 import * as https from 'https';
 import * as tls from 'tls';
+import simpleOauth2 from 'simple-oauth2';
 
 const DEFAULT_SERVER = 'http://localhost:8080';
 const DEFAULT_SOURCE = 'trino-js-client';
@@ -33,6 +34,11 @@ export interface Auth {
 export class BasicAuth implements Auth {
   readonly type: AuthType = 'basic';
   constructor(readonly username: string, readonly password?: string) {}
+}
+
+export class OAuth2 implements Auth {
+  readonly type: AuthType = 'oauth2';
+  constructor(readonly username: string) {}
 }
 
 export type Session = {[key: string]: string};
@@ -200,8 +206,20 @@ class Client {
         username: basic.username,
         password: basic.password ?? '',
       };
-
       headers[TRINO_USER_HEADER] = basic.username;
+    }
+
+    if (options.auth && options.auth.type === 'oauth2') {
+      const oauth2: OAuth2 = <OAuth2>options.auth;
+      clientConfig.auth = simpleOauth2.create({
+        auth: {
+          tokenHost: options.server,
+          tokenPath: '/oauth2/token',
+          authorizeHost: options.server,
+          authorizePath: '/oauth2/authorize',
+        }
+      });
+      headers[TRINO_USER_HEADER] = oauth2.username;
     }
 
     clientConfig.headers = cleanHeaders(headers);
